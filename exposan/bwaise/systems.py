@@ -109,13 +109,20 @@ def create_systemA(flowsheet=None):
                                   'toilet_paper', 'flushing_water',
                                   'cleansing_water', 'desiccant'),
                        outs=('mixed_waste', 'leachate', 'A2_CH4', 'A2_N2O'),
-                       N_user=get_toilet_user(), N_toilet=get_ppl('exist')/get_toilet_user(),
+                       
+                       N_user=get_toilet_user(), #16
+                       
+                       #N_toilet=get_ppl('exist')/get_toilet_user(), #456667/16
+                       
+                       N_toilet=14270, #456667/16
+                       
                        OPEX_over_CAPEX=0.05,
                        decay_k_COD=get_decay_k(),
                        decay_k_N=get_decay_k(),
                        max_CH4_emission=max_CH4_emission
                        )
-    A2.add_specification(lambda: update_toilet_param(A2, get_ppl('exist')))
+    A2.add_specification(lambda: update_toilet_param(A2, get_ppl('exist')/2))
+    #A2.add_specification(lambda: update_toilet_param(A2, get_ppl('exist')))
 
     ##### Conveyance #####
     A3 = su.Trucking('A3', ins=A2-0, outs=('transported', 'conveyance_loss'),
@@ -131,18 +138,32 @@ def create_systemA(flowsheet=None):
         vol = truck.load/rho
         A3.fee = get_tanker_truck_fee(vol)
         A3._design()
+        
+        
+        #Just change to Bwaise stuff?
+        #sys.flowsheet.stream.mixed_waste
+        #sys.flowsheet.A2.N_toilet = 28541.6875
+        #sys.flowsheet.A2.emptying_period*365*24 = every 7008 hours
+        #rho = 981.3486523181327
+        #vol = 3.5216841556120455
+        
+        #Shouldn't trucking already cover cost? Just change inputs? TEA & LCA
+        
+        
     A3.add_specification(update_A3_param)
 
 
     ##### Treatment #####
     A4 = su.LumpedCost('A4', ins=A3-0, cost_item_name='Lumped WWTP',
-                       CAPEX=18606700, power=57120/(365*24), lifetime=8)
+                       
+                       #CAPEX=18606700, 
+                       power=57120/(365*24), lifetime=8)
     A4.line = 'Lumped WWTP cost'
     get_A4_lifetime = lambda: A4.lifetime
     def update_A_t0():
         A5.t0 = A2.emptying_period
-        A6.t0 = A5.t0 # A5.tau is for the solids
-        A7.t0 = A6.t0 + A6.tau/365
+        #A6.t0 = A5.t0 # A5.tau is for the solids
+        #A7.t0 = A6.t0 + A6.tau/365
         A8.t0 = A5.t0 + A5.tau/365
     A4.add_specification(update_A_t0)
     A4.run_after_specifications = True
@@ -152,14 +173,17 @@ def create_systemA(flowsheet=None):
                           decay_k_COD=get_decay_k(),
                           decay_k_N=get_decay_k(),
                           max_CH4_emission=max_CH4_emission)
-
+    
+    """
     A6 = su.Lagoon('A6', ins=A5-0, outs=('anaerobic_treated', 'A6_CH4', 'A6_N2O'),
                    design_type='anaerobic',
                    flow_rate=sewer_flow+get_sludge_flow('exist'),
                    decay_k_N=get_decay_k(),
                    max_CH4_emission=max_CH4_emission)
     A6.add_specification(lambda: update_lagoon_flow_rate(A6))
+    """
 
+    """
     A7 = su.Lagoon('A7', ins=A6-0, outs=('facultative_treated', 'A7_CH4', 'A7_N2O'),
                    design_type='facultative',
                    flow_rate=sewer_flow+get_sludge_flow('exist'),
@@ -167,6 +191,8 @@ def create_systemA(flowsheet=None):
                    max_CH4_emission=max_CH4_emission,
                    if_N2O_emission=True)
     A7.add_specification(lambda: update_lagoon_flow_rate(A7))
+    """
+
 
     A8 = su.DryingBed('A8', ins=A5-1, outs=('dried_sludge', 'evaporated',
                                             'A8_CH4', 'A8_N2O'),
@@ -174,19 +200,36 @@ def create_systemA(flowsheet=None):
                       decay_k_COD=get_decay_k(),
                       decay_k_N=get_decay_k(),
                       max_CH4_emission=max_CH4_emission)
-    treatA = System('treatA', path=(A4, A5, A6, A7, A8))
-    A8._cost = lambda: clear_unit_costs(treatA)
+    
+    
+    
+    
+    treatA = System('treatA', path=(A4, A5, A8))
+    #treatA = System('treatA', path=(A4, A5, A6, A7, A8))
+    
+    
+    
+    #Since we commented out CAPEX, commenting out clear_unit_costs allows this to become the CAPEX (?)
+    #A8._cost = lambda: clear_unit_costs(treatA)
+    
 
     ##### Reuse or Disposal #####
+    """
     A9 = su.CropApplication('A9', ins=A7-0, outs=('liquid_fertilizer', 'reuse_loss'),
                             loss_ratio=app_loss)
     A9.add_specification(lambda: adjust_NH3_loss(A9))
+    """
+    
 
-    A10 = su.Mixer('A10', ins=(A2-2, A5-2, A6-1, A7-1, A8-2), outs=streamA.CH4)
+    #A10 = su.Mixer('A10', ins=(A2-2, A5-2, A6-1, A7-1, A8-2), outs=streamA.CH4)
+    A10 = su.Mixer('A10', ins=(A2-2, A5-2, A8-2), outs=streamA.CH4)
     A10.add_specification(lambda: add_fugitive_items(A10, 'CH4_item'))
     A10.line = 'fugitive CH4 mixer'
 
-    A11 = su.Mixer('A11', ins=(A2-3, A5-3, A6-2, A7-2, A8-3), outs=streamA.N2O)
+
+
+    #A11 = su.Mixer('A11', ins=(A2-3, A5-3, A6-2, A7-2, A8-3), outs=streamA.N2O)
+    A11 = su.Mixer('A11', ins=(A2-3, A5-3, A8-3), outs=streamA.N2O)
     A11.add_specification(lambda: add_fugitive_items(A11, 'N2O_item'))
     A11.line = 'fugitive N2O mixer'
 
@@ -195,19 +238,49 @@ def create_systemA(flowsheet=None):
                                      'sol_non_fertilizers'),
                                split_keys=(('NH3', 'NonNH3'), 'P', 'K'))
 
+    """
     A13 = su.ComponentSplitter('A13', ins=A9-0,
                                outs=(streamA.liq_N, streamA.liq_P, streamA.liq_K,
                                      'liq_non_fertilizers'),
                                split_keys=(('NH3', 'NonNH3'), 'P', 'K'))
-
+    """
+    
     ##### Simulation, TEA, and LCA #####
-    sysA = System('sysA', path=(A1, A2, A3, treatA, A9, A10, A11, A12, A13))
+    sysA = System('sysA', path=(A1, A2, A3, 
+                                treatA, A10, A11, A12))
+    #sysA = System('sysA', path=(A1, A2, A3, treatA, A9, A10, A11, A12, A13))
+
 
     exist_staff_num = 12
     annual_labor = exist_staff_num*3e6*12/exchange_rate
-    TEA(system=sysA, discount_rate=discount_rate, start_year=2018,
+    
+    
+    TEA(system=sysA, discount_rate=discount_rate, start_year=2024,
         lifetime=get_A4_lifetime(), uptime_ratio=1, lang_factor=None,
         annual_maintenance=0, annual_labor=annual_labor)
+    """
+    
+    #A6, A7, A9, A13 should not exist in this new system. (Unless CSTR to crop application?)
+    
+    
+    
+    
+    List of changes
+    -Commented out sysA, created new sysA
+    -Commented out treatA, created new treatA
+    -Commented out A11, deleted A6-2 & A7-2 as inputs
+    -Commented out A10, deleted A6-1 & A7-1 as inputs
+    -Commented out A13 & A9 & A7 & A6
+    -Commented out 2 lines under def update_A_t0(): for A7 & A6
+    
+    #No real changes to CH4 or N2O outputs - maybe negligable inputs from lagoon? Doesn't really make sense though...
+    
+    
+    
+    """
+
+
+
 
     LCA(system=sysA, lifetime=get_A4_lifetime(), lifetime_unit='yr', uptime_ratio=1,
         annualize_construction=True,
